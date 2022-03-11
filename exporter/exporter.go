@@ -12,34 +12,34 @@ import (
 var (
 	cpi = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "pod_cycles_per_instruction",
+			Name: "container_cycles_per_instruction",
 			Help: "cycles per instruction of a pod",
 		},
-		[]string{"podUid"},
+		[]string{"id"},
 	)
 
 	l3CacheMisses = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "pod_l3_cache_misses",
+			Name: "container_l3_cache_misses",
 			Help: "l3 cache misses of a pod",
 		},
-		[]string{"podUid"},
+		[]string{"id"},
 	)
 
 	cycles = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "pod_cycles_per_period",
+			Name: "container_cycles_per_period",
 			Help: "cycles per period of a pod",
 		},
-		[]string{"podUid"},
+		[]string{"id"},
 	)
 
 	instructions = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "pod_instructions_per_period",
+			Name: "container_instructions_per_period",
 			Help: "instructions per period of a pod",
 		},
-		[]string{"podUid"},
+		[]string{"id"},
 	)
 )
 
@@ -55,6 +55,7 @@ type Exporter struct {
 }
 
 func (e *Exporter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	e.reportItem()
 	promhttp.Handler().ServeHTTP(w, req)
 }
 
@@ -97,10 +98,10 @@ func (e *Exporter) RunServer() {
 func (*Exporter) reportItem() {
 	uploads := digPmuMetrics()
 	for _, u := range uploads {
-		cpi.WithLabelValues(u.PodUID).Set(u.CPI)
-		l3CacheMisses.WithLabelValues(u.PodUID).Set(u.L3CacheMisses)
-		cycles.WithLabelValues(u.PodUID).Set(u.Cycles)
-		instructions.WithLabelValues(u.PodUID).Set(u.Instructions)
+		cpi.WithLabelValues(u.ID).Set(u.CPI)
+		l3CacheMisses.WithLabelValues(u.ID).Set(u.L3CacheMisses)
+		cycles.WithLabelValues(u.ID).Set(u.Cycles)
+		instructions.WithLabelValues(u.ID).Set(u.Instructions)
 	}
 }
 

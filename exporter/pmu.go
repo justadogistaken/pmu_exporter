@@ -17,6 +17,12 @@
 
 package exporter
 
+import "C"
+import (
+	"time"
+	"unsafe"
+)
+
 /*
 #include <stdlib.h>
 #include <stdio.h>
@@ -228,6 +234,7 @@ int get_cpi(int interval, char* cgroup_path, char *cpu_str, struct collectdatas 
 }
 */
 import "C"
+
 import (
 	"errors"
 	"io/ioutil"
@@ -235,8 +242,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
-	"unsafe"
 )
 
 const (
@@ -366,7 +371,7 @@ func GetPerpodValue(cgpath string, cpuset string) chan PerfData {
 }
 
 type Sample struct {
-	PodUID        string
+	ID            string
 	CPI           float64
 	L3CacheMisses float64
 	Cycles        float64
@@ -376,7 +381,7 @@ type Sample struct {
 func digPmuMetrics() []Sample {
 	hostnames := make(map[string]string)
 	cpus := make(map[string]string)
-	prefixs := [2]string{"/kubepods.slice/kubepods-burstable.slice/", "/kubepods.slice/"}
+	prefixs := []string{"/kubepods/burstable/", "/kubepods/", "/kubepods/besteffort/"}
 	for _, pre := range prefixs {
 		files, err := IOReadDir(filepath.Join(perfEventRoot, pre))
 		if err != nil {
@@ -399,18 +404,11 @@ func digPmuMetrics() []Sample {
 				path := filepath.Join(pre, file, end)
 				procs, err := ioutil.ReadFile(filepath.Join(perfEventRoot, path, "/cgroup.procs"))
 				if err == nil {
-					pslice := strings.Split(string(procs), "\n")
+					//pslice := strings.Split(string(procs), "\n")
 					//eliminate pause docker
-					if len(pslice) > 2 {
-						//cmd := exec.Command("/bin/nsenter", "-u", "-t", pslice[0], "hostname")
-						//out, err := cmd.CombinedOutput()
-						//if err != nil {
-						//	fmt.Print("exec nsenter error! pid:", string(out))
-						//	continue
-						//}
-						hostnames[path] = file
-						//hostnames[path] = strings.TrimRight(string(out), "\n")
-					}
+					//if len(pslice) > 2 {
+					hostnames[path] = file
+					//}
 				}
 
 				//parse cpu set
@@ -437,9 +435,9 @@ func digPmuMetrics() []Sample {
 	}
 
 	ret := []Sample{}
-	buildUpload := func(endpoint string, cpi, l3cachemisses, cycles, instructions float64) Sample {
+	buildUpload := func(cgroupPath string, cpi, l3cachemisses, cycles, instructions float64) Sample {
 		return Sample{
-			PodUID:        endpoint,
+			ID:            cgroupPath,
 			CPI:           cpi,
 			L3CacheMisses: l3cachemisses,
 			Cycles:        cycles,
@@ -450,7 +448,7 @@ func digPmuMetrics() []Sample {
 	//get all pods data
 	for key := range chn {
 		data := <-chn[key]
-		s := buildUpload(hostnames[key], data.CPI, data.CacheMisses, data.Cycles, data.Instructions)
+		s := buildUpload(key, data.CPI, data.CacheMisses, data.Cycles, data.Instructions)
 		ret = append(ret, s)
 	}
 
